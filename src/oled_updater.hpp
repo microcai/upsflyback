@@ -93,7 +93,7 @@ struct oled_display_normal : boost::asio::coroutine
 				oled->print("Bat: ");
 				oled->print(to_str(model->Ibat));
 				oled->print("A");
-				oled->clear(oled->col(), 71, 4, 4);
+				oled->clear(oled->col(), 71, 4, 5);
 				oled->setCursor(72, 4);
 				oled->print("M: ");
 				switch (model->work_mode)
