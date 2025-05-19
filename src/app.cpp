@@ -1,10 +1,13 @@
 
+#include <Arduino.h>
+
 #include "app.hpp"
 #include <algorithm>
 #include <numeric>
 
 #include "app_display_model.hpp"
 #include "mcu_coro.hpp"
+#include "wiring_digital.h"
 
 template <typename T>
 T clamp(T input, T min, T max)
@@ -44,18 +47,20 @@ void APP::update_INA226(float V, float Ibat)
 	_app_model.Voltage = V*10.0;
 	_app_model.Ibat = Ibat*10.0;
 
-	if (Ibat > 0)
-		_app_model.work_mode = display_model::DISCHARGE;
-	else
+	if (digitalRead(PB2) == 1)
 	{
-		if (Ibat > -0.02)
-		{
-			_app_model.work_mode = display_model::CV;
-		}
-		else
+		if (Ibat*(-22.0) > _app_model.Ibat_setting)
 		{
 			_app_model.work_mode = display_model::CC_charge;
 		}
+		else
+		{
+			_app_model.work_mode = display_model::CV;
+		}
+	}
+	else
+	{
+		_app_model.work_mode = display_model::DISCHARGE;
 	}
 }
 
