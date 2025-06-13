@@ -175,13 +175,13 @@ void setup()
 	INA0.configure(0.01);
 	INA0.setMaxCurrentShunt(5, 0.01);
 
-	mcucoro::post(oled_update{ app,
+	oled_update(app,
 		&oled,
 		[]()
 		{
 			oled.begin(&Adafruit128x64, 0x3c);
 			oled.clear();
-		} });
+		});
 
 	// update ADC per 1ms
 }

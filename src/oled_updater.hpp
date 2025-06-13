@@ -55,128 +55,95 @@ static const char * to_str(int value_premul_by_10)
 	return buffer;
 }
 
-template<typename Handler>
-struct oled_display_normal : boost::asio::coroutine
+static inline mcucoro::awaitable<void> async_oled_display_normal(APP* app, SSD1306Ascii* oled)
 {
-    APP* app;
-    SSD1306Ascii * oled;
-	Handler handler;
-
-    oled_display_normal(APP* app, SSD1306Ascii* oled, Handler handler)
-		: app(app), oled(oled), handler(handler){}
-
-	void operator()()
+	auto model = app->get_display_model();
+	if (model->page == display_model::run_info_page)
 	{
-		auto model = app->get_display_model();
-
-		BOOST_ASIO_CORO_REENTER(this)
+		oled->setFont(TimesNewRoman16);
+		oled->setCursor(0, 0);
+		oled->print("Out:");
+		oled->print(to_str(model->Voltage));
+		oled->print("V");
+		oled->clear(oled->col(), 69, 0, 0);
+		oled->setCursor(70, 0);
+		oled->print("Set:");
+		oled->print(to_str(model->Ibat_setting));
+		oled->print("A");
+		oled->clearToEOL();
+		oled->setCursor(0, 2);
+		oled->print("Load: ");
+		oled->print(to_str(model->Iload));
+		oled->print("A");
+		oled->clearToEOL();
+		oled->setCursor(0, 4);
+		oled->print("Bat: ");
+		oled->print(to_str(model->Ibat));
+		oled->print("A");
+		oled->clear(oled->col(), 71, 4, 5);
+		oled->setCursor(72, 4);
+		oled->print("M: ");
+		switch (model->work_mode)
 		{
-			if (model->page == display_model::run_info_page)
-			{
-				oled->setFont(TimesNewRoman16);
-				oled->setCursor(0, 0);
-				oled->print("Out:");
-				oled->print(to_str(model->Voltage));
-				oled->print("V");
-				oled->clear(oled->col(), 69, 0, 0);
-				oled->setCursor(70, 0);
-				oled->print("Set:");
-				oled->print(to_str(model->Ibat_setting));
-				oled->print("A");
-				oled->clearToEOL();
-				oled->setCursor(0, 2);
-				oled->print("Load: ");
-				oled->print(to_str(model->Iload));
-				oled->print("A");
-				oled->clearToEOL();
-				oled->setCursor(0, 4);
-				oled->print("Bat: ");
-				oled->print(to_str(model->Ibat));
-				oled->print("A");
-				oled->clear(oled->col(), 71, 4, 5);
-				oled->setCursor(72, 4);
-				oled->print("M: ");
-				switch (model->work_mode)
-				{
-				case display_model::CC_charge:
-					oled->print("CC");
-					/* code */
-					break;
-				case display_model::CV:
-					oled->print("CV");
-					/* code */
-					break;
-				case display_model::DISCHARGE:
-					oled->print("DISCHARGE");
-					/* code */
-					break;
-				default:
-					break;
-				}
-				oled->clearToEOL();
-				oled->setCursor(0, 6);
-				oled->print("Total: ");
-				if (model->Ibat <0 )
-					oled->print(to_str(model->Iload - model->Ibat));
-				else
-					oled->print("0");
-				oled->print("A");
-
-				oled->clearToEOL();
-			}
-
-			mcucoro::post(handler);
+		case display_model::CC_charge:
+			oled->print("CC");
+			/* code */
+			break;
+		case display_model::CV:
+			oled->print("CV");
+			/* code */
+			break;
+		case display_model::DISCHARGE:
+			oled->print("DISCHARGE");
+			/* code */
+			break;
+		default:
+			break;
 		}
-	}
-};
+		oled->clearToEOL();
+		oled->setCursor(0, 6);
+		oled->print("Total: ");
+		if (model->Ibat <0 )
+			oled->print(to_str(model->Iload - model->Ibat));
+		else
+			oled->print("0");
+		oled->print("A");
 
-template<typename Handler>
-void async_oled_display_normal(APP* app, SSD1306Ascii* oled, Handler handler)
-{
-	mcucoro::post(
-		oled_display_normal<typename std::remove_reference<Handler>::type>{app, oled, handler}
-	);
+		oled->clearToEOL();
+	}
+	co_return ;
 }
 
 template <typename DisplayIniter>
-struct oled_update : boost::asio::coroutine
+mcucoro::awaitable<void> oled_update(APP* app, SSD1306Ascii* oled, DisplayIniter init_oled)
 {
-    APP* app;
-    SSD1306Ascii * oled;
 	int last_page = 999;
-	DisplayIniter init_oled;
 
-    oled_update(APP* app, SSD1306Ascii* oled, DisplayIniter init_oled): app(app), oled(oled), init_oled(init_oled){}
 
-	void operator()()
+	for (;;)
 	{
 		auto model = app->get_display_model();
-		BOOST_ASIO_CORO_REENTER(this)
+		if (last_page!=model->page)
 		{
-			for (;;)
-			{
-				if (last_page!=model->page)
-				{
-					last_page = model->page;
-					oled->clear();
-					BOOST_ASIO_CORO_YIELD mcucoro::delay_ms(1, *this);
-				}
-
-				if (model->page == display_model::run_info_page)
-					BOOST_ASIO_CORO_YIELD async_oled_display_normal(app, oled, *this);
-				else if (model->page == display_model::sleep_mode)
-				{
-					BOOST_ASIO_CORO_YIELD mcucoro::delay_ms(500, *this);
-				}
-				
-				if (oled->getWriteError() )
-				{
-					oled->clearWriteError();
-					init_oled();
-				}
-
-				BOOST_ASIO_CORO_YIELD mcucoro::delay_ms(25, *this);
-			}
+			last_page = model->page;
+			oled->clear();
+			co_await coro_delay_ms(10);
 		}
+
+		if (model->page == display_model::run_info_page)
+			co_await async_oled_display_normal(app, oled);
+		else if (model->page == display_model::sleep_mode)
+		{
+			co_await coro_delay_ms(500);
+		}
+
+		if (oled->getWriteError() )
+		{
+			oled->clearWriteError();
+			init_oled();
+		}
+
+		co_await coro_delay_ms(10);
 	}
+
 };
